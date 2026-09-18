@@ -1,0 +1,87 @@
+version: "2"
+
+run:
+  timeout: 5m
+  relative-path-mode: gomod
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    text:
+      print-linter-name: true
+      print-issued-lines: true
+      colors: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: true
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - errorlint
+    - errname
+    - nilerr
+    - nilnil
+    - staticcheck
+    - govet
+    - gocritic
+    - revive
+    - unused
+    - gosec
+    - bodyclose
+    - asciicheck
+    - cyclop
+    - copyloopvar
+    - dupl
+    - ineffassign
+    - unparam
+    - goconst
+    - mnd
+    - sqlclosecheck
+    - unconvert
+    - whitespace
+    - testifylint
+  disable:
+    - lll
+  exclusions:
+    generated: strict
+    rules:
+      - path: _test\.go
+        linters:
+          - cyclop
+          - dupl
+          - gosec
+  settings:
+    gosec:
+      excludes:
+        - G505
+      config:
+        global:
+          audit: true
+          show-ignored: true
+        severity: "medium"
+        confidence: "medium"
+    cyclop:
+      max-complexity: 20
+    revive:
+      severity: warning
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+    gci:
+      sections:
+        - Standard
+        - Default
+        - Prefix(github.com/alnovi/closer)
+      no-inline-comments: false

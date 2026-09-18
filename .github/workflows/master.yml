@@ -1,0 +1,58 @@
+name: Push on master
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  lint:
+    name: run lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+          skip-cache: true
+  test:
+    name: run test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Run tests
+        run: go test ./... -count=1 -coverpkg=./... -coverprofile=./cover.out -covermode=atomic
+
+#      - name: Check and push badge coverage
+#        uses: vladopajic/go-test-coverage@v2
+#        with:
+#          config: ./.testcoverage.yml
+#          git-token: ${{ github.ref_name == 'master' && secrets.GITHUB_TOKEN || '' }}
+#          git-branch: badges
