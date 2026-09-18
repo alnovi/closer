@@ -1,4 +1,5 @@
 name: Push on master
+permissions: write-all
 
 on:
   push:
@@ -50,9 +51,9 @@ jobs:
       - name: Run tests
         run: go test ./... -count=1 -coverpkg=./... -coverprofile=./cover.out -covermode=atomic
 
-#      - name: Check and push badge coverage
-#        uses: vladopajic/go-test-coverage@v2
-#        with:
-#          config: ./.testcoverage.yml
-#          git-token: ${{ github.ref_name == 'master' && secrets.GITHUB_TOKEN || '' }}
-#          git-branch: badges
+      - name: Check and push badge coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          config: ./.testcoverage.yml
+          git-token: ${{ github.ref_name == 'master' && secrets.GITHUB_TOKEN || '' }}
+          git-branch: badges
