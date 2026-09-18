@@ -13,8 +13,6 @@ var (
 	ErrShutdownWithErrors = errors.New("shutdown finished with errors")
 )
 
-type CloseFunc func(ctx context.Context) error
-
 type Closer struct {
 	handlers []*Handler
 	timeout  time.Duration

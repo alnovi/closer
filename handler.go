@@ -14,15 +14,28 @@ var (
 
 type Handler struct {
 	Name    string
-	CloseFn CloseFunc
+	CloseFn func(ctx context.Context) error
 }
 
-func NewHandler(name string, fn CloseFunc) *Handler {
+func NewCtxHandlerErr(name string, fn func(ctx context.Context) error) *Handler {
 	return &Handler{Name: name, CloseFn: fn}
 }
 
-func NewWrapHandler(name string, fn func()) *Handler {
-	return NewHandler(name, func(_ context.Context) error {
+func NewCtxHandler(name string, fn func(ctx context.Context)) *Handler {
+	return NewCtxHandlerErr(name, func(ctx context.Context) error {
+		fn(ctx)
+		return nil
+	})
+}
+
+func NewHandlerErr(name string, fn func() error) *Handler {
+	return NewCtxHandlerErr(name, func(ctx context.Context) error {
+		return fn()
+	})
+}
+
+func NewHandler(name string, fn func()) *Handler {
+	return NewCtxHandlerErr(name, func(_ context.Context) error {
 		fn()
 		return nil
 	})

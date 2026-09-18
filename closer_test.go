@@ -23,8 +23,8 @@ func TestCloser(t *testing.T) {
 		{
 			name: "Success all tasks",
 			handlers: []*Handler{
-				NewWrapHandler("redis", func() { time.Sleep(10 * time.Second) }),
-				NewWrapHandler("postgres", func() { time.Sleep(30 * time.Second) }),
+				NewHandler("redis", func() { time.Sleep(10 * time.Second) }),
+				NewHandler("postgres", func() { time.Sleep(30 * time.Second) }),
 			},
 			sleep:     time.Minute,
 			expErr:    "",
@@ -33,11 +33,11 @@ func TestCloser(t *testing.T) {
 		{
 			name: "Success close with errors",
 			handlers: []*Handler{
-				NewHandler("redis", func(_ context.Context) error {
+				NewCtxHandlerErr("redis", func(_ context.Context) error {
 					time.Sleep(10 * time.Second)
 					return nil
 				}),
-				NewHandler("postgres", func(_ context.Context) error {
+				NewCtxHandlerErr("postgres", func(_ context.Context) error {
 					time.Sleep(30 * time.Second)
 					return errors.New("some error")
 				}),
@@ -49,9 +49,9 @@ func TestCloser(t *testing.T) {
 		{
 			name: "Redis is timeout",
 			handlers: []*Handler{
-				NewWrapHandler("redis", func() { time.Sleep(20 * time.Second) }),
-				NewWrapHandler("postgres", func() { time.Sleep(20 * time.Second) }),
-				NewWrapHandler("http", func() { time.Sleep(30 * time.Second) }),
+				NewCtxHandler("redis", func(_ context.Context) { time.Sleep(20 * time.Second) }),
+				NewCtxHandler("postgres", func(_ context.Context) { time.Sleep(20 * time.Second) }),
+				NewCtxHandler("http", func(_ context.Context) { time.Sleep(30 * time.Second) }),
 			},
 			sleep:     2 * time.Minute,
 			expErr:    ErrShutdownCancelled.Error(),
@@ -60,10 +60,10 @@ func TestCloser(t *testing.T) {
 		{
 			name: "Redis is cancelled",
 			handlers: []*Handler{
-				NewWrapHandler("redis", func() { time.Sleep(10 * time.Second) }),
-				NewWrapHandler("postgres", func() { time.Sleep(20 * time.Second) }),
-				NewWrapHandler("http", func() { time.Sleep(20 * time.Second) }),
-				NewWrapHandler("grpc", func() { time.Sleep(30 * time.Second) }),
+				NewHandlerErr("redis", func() error { time.Sleep(10 * time.Second); return nil }),
+				NewHandlerErr("postgres", func() error { time.Sleep(20 * time.Second); return nil }),
+				NewHandlerErr("http", func() error { time.Sleep(20 * time.Second); return nil }),
+				NewHandlerErr("grpc", func() error { time.Sleep(30 * time.Second); return nil }),
 			},
 			sleep:     2 * time.Minute,
 			expErr:    ErrShutdownCancelled.Error(),
@@ -72,7 +72,7 @@ func TestCloser(t *testing.T) {
 		{
 			name: "Success with panic",
 			handlers: []*Handler{
-				NewWrapHandler("redis", func() {
+				NewHandler("redis", func() {
 					time.Sleep(10 * time.Second)
 					panic(errors.New("some panic"))
 				}),
