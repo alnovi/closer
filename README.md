@@ -51,8 +51,8 @@ func main() {
 		cancel()
 	}()
 
-	cl.Add(closer.NewWrapHandler("redis", closeRedis))
-	cl.Add(closer.NewHandler("postgres", closePostgres))
+	cl.Add(closer.NewHandler("redis", closeRedis))
+	cl.Add(closer.NewCtxHandlerErr("postgres", closePostgres))
 
 	<-ctx.Done()
 }
