@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 var (
@@ -14,31 +15,42 @@ var (
 
 type Handler struct {
 	Name    string
+	Timeout time.Duration
 	CloseFn func(ctx context.Context) error
+	ForceFn func()
 }
 
-func NewCtxHandlerErr(name string, fn func(ctx context.Context) error) *Handler {
-	return &Handler{Name: name, CloseFn: fn}
+func NewCtxHandlerErr(name string, fn func(ctx context.Context) error, opts ...HandlerOption) *Handler {
+	h := &Handler{Name: name, Timeout: time.Minute, CloseFn: fn}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
-func NewCtxHandler(name string, fn func(ctx context.Context)) *Handler {
-	return NewCtxHandlerErr(name, func(ctx context.Context) error {
+func NewCtxHandler(name string, fn func(ctx context.Context), opts ...HandlerOption) *Handler {
+	closeFn := func(ctx context.Context) error {
 		fn(ctx)
 		return nil
-	})
+	}
+	return NewCtxHandlerErr(name, closeFn, opts...)
 }
 
-func NewHandlerErr(name string, fn func() error) *Handler {
-	return NewCtxHandlerErr(name, func(ctx context.Context) error {
+func NewHandlerErr(name string, fn func() error, opts ...HandlerOption) *Handler {
+	closeFn := func(ctx context.Context) error {
 		return fn()
-	})
+	}
+	return NewCtxHandlerErr(name, closeFn, opts...)
 }
 
-func NewHandler(name string, fn func()) *Handler {
-	return NewCtxHandlerErr(name, func(_ context.Context) error {
+func NewHandler(name string, fn func(), opts ...HandlerOption) *Handler {
+	closeFn := func(ctx context.Context) error {
 		fn()
 		return nil
-	})
+	}
+	return NewCtxHandlerErr(name, closeFn, opts...)
 }
 
 func (h *Handler) Close(ctx context.Context) error {
@@ -47,6 +59,9 @@ func (h *Handler) Close(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ErrHandlerCancelled
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, h.Timeout)
+	defer cancel()
 
 	done := make(chan struct{})
 	go func() {
@@ -64,6 +79,14 @@ func (h *Handler) Close(ctx context.Context) error {
 	case <-done:
 		return err
 	case <-ctx.Done():
+		if h.ForceFn != nil {
+			go func() {
+				defer func() {
+					_ = recover()
+				}()
+				h.ForceFn()
+			}()
+		}
 		return ErrHandlerTimeout
 	}
 }

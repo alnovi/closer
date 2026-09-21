@@ -15,4 +15,4 @@ lint-fix:
 test:
 	@go tool gotestsum --format=testname -- -count=1 -coverpkg=./... -coverprofile=./cover.out ./...
 	@go tool cover -html=./cover.out
-	@rm ./coverage.out
+	@rm ./cover.out

@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	serviceRedis    = "redis"
+	servicePostgres = "postgres"
+	serviceHTTP     = "http"
+	serviceGRPC     = "grpc"
+)
+
 func TestCloser(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -23,56 +30,56 @@ func TestCloser(t *testing.T) {
 		{
 			name: "Success all tasks",
 			handlers: []*Handler{
-				NewHandler("redis", func() { time.Sleep(10 * time.Second) }),
-				NewHandler("postgres", func() { time.Sleep(30 * time.Second) }),
+				NewHandler(serviceRedis, func() { time.Sleep(10 * time.Second) }),
+				NewHandler(servicePostgres, func() { time.Sleep(30 * time.Second) }),
 			},
 			sleep:     time.Minute,
 			expErr:    "",
-			expReport: []string{"postgres", "redis"},
+			expReport: []string{servicePostgres, serviceRedis},
 		},
 		{
 			name: "Success close with errors",
 			handlers: []*Handler{
-				NewCtxHandlerErr("redis", func(_ context.Context) error {
+				NewCtxHandlerErr(serviceRedis, func(_ context.Context) error {
 					time.Sleep(10 * time.Second)
 					return nil
 				}),
-				NewCtxHandlerErr("postgres", func(_ context.Context) error {
+				NewCtxHandlerErr(servicePostgres, func(_ context.Context) error {
 					time.Sleep(30 * time.Second)
 					return errors.New("some error")
 				}),
 			},
 			sleep:     2 * time.Minute,
 			expErr:    ErrShutdownWithErrors.Error(),
-			expReport: []string{"postgres - some error", "redis"},
+			expReport: []string{"postgres - some error", serviceRedis},
 		},
 		{
 			name: "Redis is timeout",
 			handlers: []*Handler{
-				NewCtxHandler("redis", func(_ context.Context) { time.Sleep(20 * time.Second) }),
-				NewCtxHandler("postgres", func(_ context.Context) { time.Sleep(20 * time.Second) }),
-				NewCtxHandler("http", func(_ context.Context) { time.Sleep(30 * time.Second) }),
+				NewCtxHandler(serviceRedis, func(_ context.Context) { time.Sleep(20 * time.Second) }),
+				NewCtxHandler(servicePostgres, func(_ context.Context) { time.Sleep(20 * time.Second) }),
+				NewCtxHandler(serviceHTTP, func(_ context.Context) { time.Sleep(30 * time.Second) }),
 			},
 			sleep:     2 * time.Minute,
 			expErr:    ErrShutdownCancelled.Error(),
-			expReport: []string{"http", "postgres", "redis - handler timeout"},
+			expReport: []string{serviceHTTP, servicePostgres, "redis - handler timeout"},
 		},
 		{
 			name: "Redis is cancelled",
 			handlers: []*Handler{
-				NewHandlerErr("redis", func() error { time.Sleep(10 * time.Second); return nil }),
-				NewHandlerErr("postgres", func() error { time.Sleep(20 * time.Second); return nil }),
-				NewHandlerErr("http", func() error { time.Sleep(20 * time.Second); return nil }),
-				NewHandlerErr("grpc", func() error { time.Sleep(30 * time.Second); return nil }),
+				NewHandlerErr(serviceRedis, func() error { time.Sleep(10 * time.Second); return nil }),
+				NewHandlerErr(servicePostgres, func() error { time.Sleep(20 * time.Second); return nil }),
+				NewHandlerErr(serviceHTTP, func() error { time.Sleep(20 * time.Second); return nil }),
+				NewHandlerErr(serviceGRPC, func() error { time.Sleep(30 * time.Second); return nil }),
 			},
 			sleep:     2 * time.Minute,
 			expErr:    ErrShutdownCancelled.Error(),
-			expReport: []string{"grpc", "http", "postgres - handler timeout", "redis - handler cancelled"},
+			expReport: []string{serviceGRPC, serviceHTTP, "postgres - handler timeout", "redis - handler cancelled"},
 		},
 		{
 			name: "Success with panic",
 			handlers: []*Handler{
-				NewHandler("redis", func() {
+				NewHandler(serviceRedis, func() {
 					time.Sleep(10 * time.Second)
 					panic(errors.New("some panic"))
 				}),
@@ -80,6 +87,61 @@ func TestCloser(t *testing.T) {
 			sleep:     time.Minute,
 			expErr:    ErrShutdownWithErrors.Error(),
 			expReport: []string{"redis - handler panic: some panic"},
+		},
+		{
+			name: "Success with handler timeout",
+			handlers: []*Handler{
+				NewHandler(serviceRedis, func() {
+					time.Sleep(15 * time.Second)
+				}),
+				NewHandler(servicePostgres, func() {
+					time.Sleep(15 * time.Second)
+				}),
+				NewCtxHandler(serviceHTTP, func(ctx context.Context) {
+					ticker := time.NewTicker(time.Second)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case <-ticker.C:
+							continue
+						}
+					}
+				}, WithTimeout(15*time.Second)),
+			},
+			sleep:     time.Minute,
+			expErr:    ErrShutdownWithErrors.Error(),
+			expReport: []string{"http - handler timeout", servicePostgres, serviceRedis},
+		},
+		{
+			name: "Success with handler timeout and panic",
+			handlers: []*Handler{
+				NewHandler(serviceRedis, func() {
+					time.Sleep(15 * time.Second)
+				}),
+				NewHandler(servicePostgres, func() {
+					time.Sleep(15 * time.Second)
+				}),
+				NewCtxHandler(serviceGRPC, func(ctx context.Context) {
+					ticker := time.NewTicker(time.Second)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case <-ticker.C:
+							continue
+						}
+					}
+				}, WithTimeout(15*time.Second), WithForceClose(func() {
+					time.Sleep(5 * time.Second)
+					panic(errors.New("some panic"))
+				})),
+			},
+			sleep:     time.Minute,
+			expErr:    ErrShutdownWithErrors.Error(),
+			expReport: []string{"grpc - handler timeout", servicePostgres, serviceRedis},
 		},
 	}
 
